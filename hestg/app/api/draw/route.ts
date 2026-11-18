@@ -155,7 +155,7 @@ export async function POST(req: NextRequest) {
     const usedNumbers = await prisma.participant.findMany({
       select: { number: true },
     });
-    const usedSet = new Set(usedNumbers.map((p) => p.number));
+    const usedSet = new Set(usedNumbers.map((p: { number: number }) => p.number));
 
     const available: number[] = [];
     for (let n = 1; n <= settings.maxNumber; n++) {

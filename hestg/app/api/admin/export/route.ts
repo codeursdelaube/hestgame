@@ -4,6 +4,7 @@
  */
 import { verifyAdminSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import type { Participant } from "@prisma/client";
 
 
 export async function GET() {
@@ -17,7 +18,7 @@ export async function GET() {
 
   // Construction du CSV
   const header = "Numéro,Prénom,Nom,Genre,Filière,Équipe,Date inscription";
-  const rows = participants.map((p) => {
+  const rows = participants.map((p: Participant) => {
     const date = new Date(p.createdAt).toLocaleString("fr-FR", {
       timeZone: "Africa/Lome",
     });
