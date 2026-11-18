@@ -1,0 +1,48 @@
+// Schéma Prisma pour HESTGame
+// Tirage au sort "Octobre Rose & Novembre Bleu" - HEST Lomé
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// Paramètres globaux de l'événement
+model Settings {
+  id              Int       @id @default(1)
+  maxNumber       Int       @default(200)   // Nombre max de numéros disponibles
+  teamCount       Int       @default(4)     // Nombre d'équipes pour Génies en herbe
+  drawOpen        Boolean   @default(false) // Tirage ouvert ou fermé (contrôle direct admin)
+  openTime        String?   @default("13:30") // Heure prévue annoncée (ex: "13:30", "14:00")
+  closedMessage   String?   @default("Le tirage n'est pas encore ouvert. Veuillez patienter.")
+  scheduledOpenAt DateTime? // Date et heure précises si ouverture programmée
+  autoOpen        Boolean   @default(false) // Si true, s'ouvre automatiquement à l'heure programmée
+}
+
+// Chaque participant inscrit
+model Participant {
+  id        String   @id @default(cuid())
+  firstName String   // Prénom (normalisé en minuscules pour la déduplication)
+  lastName  String   // Nom (normalisé)
+  gender    String   // "Fille" ou "Garçon"
+  filiere   String?  // Filière ou classe (optionnel)
+  number    Int      @unique // Numéro attribué (unique)
+  team      Int      // Équipe (number % teamCount)
+  token     String   @unique // Token httpOnly pour anti-doublon
+  createdAt DateTime @default(now())
+
+  // Relation vers Winner si ce participant a gagné
+  winners Winner[]
+}
+
+// Gagnant(s) du tirage final
+model Winner {
+  id            String      @id @default(cuid())
+  participantId String
+  participant   Participant @relation(fields: [participantId], references: [id])
+  number        Int
+  drawnAt       DateTime    @default(now())
+  archived      Boolean     @default(false) // true si ce gagnant a été remplacé
+}

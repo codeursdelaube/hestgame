@@ -1,0 +1,111 @@
+/**
+ * app/globals.css
+ * Styles globaux HESTGame - Tailwind CSS v4
+ */
+@import "tailwindcss";
+@plugin "daisyui";
+
+/* ─── Variables de marque HEST ─── */
+@theme inline {
+  --color-hest-pink:      #D81B7A;
+  --color-hest-pink-light: #F06AAD;
+  --color-hest-blue:      #1A3FA8;
+  --color-hest-navy:      #14246B;
+  --color-background:     #fff5f9;
+  --color-foreground:     #1a1a2e;
+
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+/* ─── Base globale ─── */
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background: linear-gradient(135deg, #fff0f7 0%, #f0f4ff 100%);
+  color: var(--color-foreground);
+  font-family: var(--font-sans), system-ui, sans-serif;
+  min-height: 100dvh;
+}
+
+/* ─── Bouton primaire HEST (rose) ─── */
+.btn-hest-pink {
+  background-color: var(--color-hest-pink);
+  color: white;
+  border: none;
+  transition: background-color 0.2s, transform 0.1s;
+}
+.btn-hest-pink:hover:not(:disabled) {
+  background-color: #c01570;
+  transform: translateY(-1px);
+}
+.btn-hest-pink:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+/* ─── Bouton secondaire HEST (bleu) ─── */
+.btn-hest-blue {
+  background-color: var(--color-hest-blue);
+  color: white;
+  border: none;
+  transition: background-color 0.2s, transform 0.1s;
+}
+.btn-hest-blue:hover:not(:disabled) {
+  background-color: #152f8a;
+  transform: translateY(-1px);
+}
+
+/* ─── Carte HEST ─── */
+.card-hest {
+  background: white;
+  border-radius: 1.25rem;
+  box-shadow: 0 4px 32px rgba(216, 27, 122, 0.08), 0 1px 4px rgba(26, 63, 168, 0.06);
+  border: 1px solid rgba(216, 27, 122, 0.08);
+}
+
+/* ─── Dégradé du titre ─── */
+.gradient-title {
+  background: linear-gradient(135deg, var(--color-hest-pink), var(--color-hest-blue));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* ─── Ruban décoratif ─── */
+.ribbon {
+  position: absolute;
+  width: 100%;
+  height: 6px;
+  top: 0;
+  left: 0;
+  background: linear-gradient(90deg,
+    var(--color-hest-pink) 0%,
+    var(--color-hest-pink) 50%,
+    var(--color-hest-blue) 50%,
+    var(--color-hest-blue) 100%
+  );
+  border-radius: 1rem 1rem 0 0;
+}
+
+/* ─── Animation de la roue ─── */
+@keyframes spin-ease-out {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(var(--final-rotation, 1440deg)); }
+}
+
+/* ─── Accessibilité : focus visible ─── */
+*:focus-visible {
+  outline: 3px solid var(--color-hest-pink);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* ─── Scrollbar personnalisée ─── */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: #f0f4ff; }
+::-webkit-scrollbar-thumb {
+  background: linear-gradient(var(--color-hest-pink), var(--color-hest-blue));
+  border-radius: 3px;
+}
