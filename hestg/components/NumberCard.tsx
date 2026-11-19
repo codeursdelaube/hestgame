@@ -5,7 +5,7 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { Star, Users } from "lucide-react";
+import { Star, Users, Ribbon } from "lucide-react";
 
 interface NumberCardProps {
   number: number;
@@ -33,20 +33,31 @@ export default function NumberCard({
       initial={{ scale: 0.5, opacity: 0, y: 40 }}
       animate={{ scale: 1, opacity: 1, y: 0 }}
       transition={{ type: "spring", stiffness: 200, damping: 15, delay: 0.2 }}
-      className="card-hest p-6 w-full max-w-sm mx-auto relative overflow-hidden"
+      className="card-hest p-5 sm:p-6 w-full max-w-sm mx-auto relative overflow-hidden"
     >
       {/* Ruban coloré en haut */}
       <div className="ribbon" />
 
-      {/* Icône de genre */}
-      <div className="flex justify-center mt-2 mb-4">
-        <span className="text-5xl" role="img" aria-label={gender}>
-          {isPink ? "🎀" : "🎗️"}
-        </span>
+      {/* Icône genre */}
+      <div className="flex justify-center mt-3 mb-4">
+        <div
+          className="w-14 h-14 rounded-2xl flex items-center justify-center"
+          style={{
+            background: isPink
+              ? "linear-gradient(135deg, #D81B7A20, #F06AAD20)"
+              : "linear-gradient(135deg, #1A3FA820, #3b5fc020)",
+          }}
+        >
+          <Ribbon
+            size={28}
+            strokeWidth={1.5}
+            style={{ color: isPink ? "#D81B7A" : "#1A3FA8" }}
+          />
+        </div>
       </div>
 
       {/* Nom */}
-      <p className="text-center text-gray-600 text-sm font-medium mb-2">
+      <p className="text-center text-gray-600 text-sm font-medium mb-3">
         {firstName} {lastName}
       </p>
 

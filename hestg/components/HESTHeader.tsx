@@ -5,6 +5,7 @@
 "use client";
 
 import { motion } from "framer-motion";
+import { Ribbon } from "lucide-react";
 
 interface HESTHeaderProps {
   title?: string;
@@ -24,7 +25,7 @@ export default function HESTHeader({
 
       <div
         className={`flex flex-col items-center justify-center ${
-          compact ? "py-4 gap-1" : "py-8 gap-2"
+          compact ? "py-4 gap-1" : "py-6 sm:py-8 gap-2"
         }`}
       >
         {/* Icônes de rubans décoratifs */}
@@ -34,10 +35,13 @@ export default function HESTHeader({
             initial={{ opacity: 0, scale: 0.5 }}
             animate={{ opacity: 1, scale: 1 }}
             transition={{ delay: 0.1 }}
-            className="text-2xl"
             aria-hidden="true"
           >
-            🎀
+            <Ribbon
+              size={compact ? 20 : 28}
+              className="text-[#D81B7A]"
+              strokeWidth={1.5}
+            />
           </motion.span>
 
           {/* Titre principal */}
@@ -46,7 +50,7 @@ export default function HESTHeader({
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.2 }}
             className={`font-black gradient-title ${
-              compact ? "text-2xl" : "text-4xl sm:text-5xl"
+              compact ? "text-2xl" : "text-3xl sm:text-4xl md:text-5xl"
             }`}
           >
             {title}
@@ -57,10 +61,13 @@ export default function HESTHeader({
             initial={{ opacity: 0, scale: 0.5 }}
             animate={{ opacity: 1, scale: 1 }}
             transition={{ delay: 0.1 }}
-            className="text-2xl"
             aria-hidden="true"
           >
-            🎗️
+            <Ribbon
+              size={compact ? 20 : 28}
+              className="text-[#1A3FA8]"
+              strokeWidth={1.5}
+            />
           </motion.span>
         </div>
 
@@ -71,7 +78,7 @@ export default function HESTHeader({
             animate={{ opacity: 1 }}
             transition={{ delay: 0.35 }}
             className={`text-center font-medium text-gray-500 ${
-              compact ? "text-xs" : "text-sm sm:text-base"
+              compact ? "text-xs" : "text-xs sm:text-sm md:text-base"
             }`}
           >
             {subtitle}

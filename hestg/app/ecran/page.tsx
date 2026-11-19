@@ -8,6 +8,16 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import {
+  Users,
+  Ribbon,
+  Trophy,
+  Star,
+  Maximize2,
+  Minimize2,
+  Wifi,
+  WifiOff,
+} from "lucide-react";
 import SpinningWheel from "@/components/SpinningWheel";
 import ConfettiEffect from "@/components/ConfettiEffect";
 
@@ -47,6 +57,7 @@ export default function EcranPage() {
   const [displayedWinner, setDisplayedWinner] = useState<ScreenData["winner"]>(null);
   const [showConfetti, setShowConfetti] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [isConnected, setIsConnected] = useState(true);
   const prevWinnerId = useRef<string | null>(null);
   const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -54,11 +65,11 @@ export default function EcranPage() {
   const fetchData = useCallback(async () => {
     try {
       const res = await fetch("/api/screen");
-      if (!res.ok) return;
+      if (!res.ok) { setIsConnected(false); return; }
       const json: ScreenData = await res.json();
       setData(json);
+      setIsConnected(true);
 
-      // Si un nouveau gagnant est apparu → déclencher la séquence
       const winnerId = json.winner
         ? `${json.winner.number}-${json.winner.drawnAt}`
         : null;
@@ -67,9 +78,10 @@ export default function EcranPage() {
         prevWinnerId.current = winnerId;
         startWinnerSequence(json.winner!);
       }
-    } catch (err) {
-      console.error("Erreur polling /api/screen:", err);
+    } catch {
+      setIsConnected(false);
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [screenState]);
 
   useEffect(() => {
@@ -80,7 +92,6 @@ export default function EcranPage() {
 
   // ── Séquence de révélation du gagnant ──
   const startWinnerSequence = (winner: NonNullable<ScreenData["winner"]>) => {
-    // 1. Compte à rebours
     setScreenState("countdown");
     setCountdown(5);
 
@@ -90,11 +101,9 @@ export default function EcranPage() {
       setCountdown(count);
       if (count <= 0) {
         clearInterval(countdownRef.current!);
-        // 2. Lancer la roue
         setSpinRotation(3 * 360 + Math.random() * 360);
         setScreenState("spinning");
 
-        // 3. Après l'animation (4.5s) → révéler le gagnant
         setTimeout(() => {
           setDisplayedWinner(winner);
           setScreenState("revealed");
@@ -123,10 +132,13 @@ export default function EcranPage() {
 
   if (!data) {
     return (
-      <div className="min-h-dvh flex items-center justify-center"
-        style={{ background: "linear-gradient(135deg, #14246B 0%, #D81B7A 100%)" }}>
-        <div className="text-white text-2xl font-bold animate-pulse">
-          Chargement…
+      <div
+        className="min-h-dvh flex items-center justify-center"
+        style={{ background: "linear-gradient(135deg, #14246B 0%, #D81B7A 100%)" }}
+      >
+        <div className="text-white text-2xl font-bold animate-pulse flex items-center gap-3">
+          <Wifi size={28} className="animate-pulse" />
+          Connexion…
         </div>
       </div>
     );
@@ -146,13 +158,32 @@ export default function EcranPage() {
         <div className="absolute top-1/4 right-10 w-48 h-48 rounded-full bg-pink-500/10" />
       </div>
 
-      {/* Bouton plein écran */}
-      <button
-        onClick={toggleFullscreen}
-        className="absolute top-4 right-4 z-50 text-white/60 hover:text-white text-xs px-3 py-1 rounded-full border border-white/20 hover:border-white/40 transition-colors"
-      >
-        {isFullscreen ? "⤡ Réduire" : "⤢ Plein écran"}
-      </button>
+      {/* ── Barre de statut (haut) ── */}
+      <div className="absolute top-4 left-4 right-4 z-50 flex items-center justify-between">
+        {/* Indicateur connexion */}
+        <div
+          className={`flex items-center gap-1.5 text-xs px-3 py-1 rounded-full border backdrop-blur-sm ${
+            isConnected
+              ? "text-emerald-200 border-emerald-400/30 bg-emerald-500/20"
+              : "text-red-200 border-red-400/30 bg-red-500/20"
+          }`}
+        >
+          {isConnected
+            ? <Wifi size={12} />
+            : <WifiOff size={12} />
+          }
+          <span>{isConnected ? "En direct" : "Reconnexion…"}</span>
+        </div>
+
+        {/* Bouton plein écran */}
+        <button
+          onClick={toggleFullscreen}
+          className="text-white/60 hover:text-white text-xs px-3 py-1 rounded-full border border-white/20 hover:border-white/40 transition-colors flex items-center gap-1.5"
+        >
+          {isFullscreen ? <Minimize2 size={12} /> : <Maximize2 size={12} />}
+          {isFullscreen ? "Réduire" : "Plein écran"}
+        </button>
+      </div>
 
       {/* ── ÉTAT IDLE : Affichage des stats ── */}
       <AnimatePresence mode="wait">
@@ -162,19 +193,22 @@ export default function EcranPage() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="flex flex-col items-center justify-center flex-1 px-8 py-12 gap-8"
+            className="flex flex-col items-center justify-center flex-1 px-6 sm:px-8 py-16 gap-6 sm:gap-8"
           >
             {/* Titre */}
             <div className="text-center">
-              <div className="flex items-center justify-center gap-4 mb-2">
-                <span className="text-5xl">🎀</span>
-                <h1 className="text-6xl sm:text-8xl font-black text-white">
+              <div className="flex items-center justify-center gap-3 sm:gap-4 mb-2">
+                <Ribbon size={36} className="text-[#F06AAD]" strokeWidth={1.5} />
+                <h1
+                  className="font-black text-white"
+                  style={{ fontSize: "clamp(2.5rem, 10vw, 6rem)" }}
+                >
                   HESTGame
                 </h1>
-                <span className="text-5xl">🎗️</span>
+                <Ribbon size={36} className="text-[#93aff5]" strokeWidth={1.5} />
               </div>
-              <p className="text-white/70 text-xl sm:text-2xl font-medium">
-                Octobre Rose & Novembre Bleu — HEST Lomé
+              <p className="text-white/70 text-base sm:text-xl md:text-2xl font-medium">
+                Octobre Rose &amp; Novembre Bleu — HEST Lomé
               </p>
             </div>
 
@@ -184,13 +218,17 @@ export default function EcranPage() {
               animate={{ scale: [1, 1.02, 1] }}
               transition={{ repeat: Infinity, duration: 3, ease: "easeInOut" }}
             >
-              <p className="text-white/60 text-lg uppercase tracking-widest font-semibold mb-2">
+              <p className="text-white/60 text-sm sm:text-lg uppercase tracking-widest font-semibold mb-2 flex items-center justify-center gap-2">
+                <Users size={18} className="text-white/40" />
                 Participants inscrits
               </p>
-              <p className="font-black text-white" style={{ fontSize: "clamp(6rem, 15vw, 12rem)", lineHeight: 1 }}>
+              <p
+                className="font-black text-white"
+                style={{ fontSize: "clamp(5rem, 15vw, 12rem)", lineHeight: 1 }}
+              >
                 {data.count}
               </p>
-              <p className="text-white/50 text-lg">
+              <p className="text-white/50 text-base sm:text-lg">
                 sur {data.maxNumber} numéros
               </p>
             </motion.div>
@@ -201,33 +239,43 @@ export default function EcranPage() {
                 key={data.latest.number}
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="bg-white/10 backdrop-blur-sm rounded-3xl px-8 py-5 text-center border border-white/20"
+                className="bg-white/10 backdrop-blur-sm rounded-3xl px-6 sm:px-8 py-4 sm:py-5 text-center border border-white/20 w-full max-w-sm sm:max-w-md"
               >
-                <p className="text-white/60 text-sm uppercase tracking-widest font-semibold mb-1">
+                <p className="text-white/60 text-xs sm:text-sm uppercase tracking-widest font-semibold mb-1">
                   Dernière inscription
                 </p>
-                <p className="text-white font-black text-3xl sm:text-4xl">
+                <p className="text-white font-black text-2xl sm:text-3xl md:text-4xl">
                   {data.latest.firstName} {data.latest.lastName}
                 </p>
                 <p
-                  className="text-2xl font-bold mt-1"
+                  className="text-lg sm:text-2xl font-bold mt-1 flex items-center justify-center gap-2"
                   style={{ color: data.latest.gender === "Fille" ? "#F06AAD" : "#93aff5" }}
                 >
-                  Numéro {data.latest.number} —{" "}
-                  Équipe {TEAM_NAMES[data.latest.team - 1] || data.latest.team}
+                  <Ribbon size={18} strokeWidth={1.5} />
+                  Numéro {data.latest.number} — Équipe {TEAM_NAMES[data.latest.team - 1] || data.latest.team}
                 </p>
               </motion.div>
             )}
 
-            {/* Statut contrôlé par l'admin */}
-            <div className={`text-base font-bold px-6 py-2.5 rounded-full border shadow-lg backdrop-blur-md ${
-              data.drawOpen
-                ? "bg-emerald-500/30 text-emerald-200 border-emerald-400/40"
-                : "bg-red-500/30 text-red-200 border-red-400/40"
-            }`}>
-              {data.drawOpen
-                ? "🟢 Tirage ouvert — Inscrivez-vous sur votre téléphone !"
-                : `🔴 Tirage fermé — Ouverture prévue à ${data.openTime || "13h30"}`}
+            {/* Statut */}
+            <div
+              className={`text-sm sm:text-base font-bold px-5 sm:px-6 py-2.5 rounded-full border shadow-lg backdrop-blur-md flex items-center gap-2 ${
+                data.drawOpen
+                  ? "bg-emerald-500/30 text-emerald-200 border-emerald-400/40"
+                  : "bg-red-500/30 text-red-200 border-red-400/40"
+              }`}
+            >
+              {data.drawOpen ? (
+                <>
+                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping flex-shrink-0" />
+                  Tirage ouvert — Inscrivez-vous sur votre téléphone !
+                </>
+              ) : (
+                <>
+                  <span className="w-2 h-2 rounded-full bg-red-400 flex-shrink-0" />
+                  Tirage fermé — Ouverture prévue à {data.openTime || "13h30"}
+                </>
+              )}
             </div>
           </motion.div>
         )}
@@ -241,7 +289,7 @@ export default function EcranPage() {
             exit={{ opacity: 0 }}
             className="flex flex-col items-center justify-center flex-1 gap-6"
           >
-            <p className="text-white/70 text-2xl font-semibold uppercase tracking-widest">
+            <p className="text-white/70 text-xl sm:text-2xl font-semibold uppercase tracking-widest text-center px-4">
               Tirage du gagnant dans…
             </p>
             <AnimatePresence mode="wait">
@@ -277,10 +325,11 @@ export default function EcranPage() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="flex flex-col items-center justify-center flex-1 gap-8"
+            className="flex flex-col items-center justify-center flex-1 gap-6 sm:gap-8"
           >
-            <p className="text-white font-black text-3xl animate-pulse">
-              🎰 La roue tourne…
+            <p className="text-white font-black text-2xl sm:text-3xl animate-pulse flex items-center gap-3">
+              <Trophy size={28} className="text-yellow-300" />
+              La roue tourne…
             </p>
             <SpinningWheel
               finalRotation={spinRotation}
@@ -297,24 +346,25 @@ export default function EcranPage() {
             initial={{ opacity: 0, scale: 0.7 }}
             animate={{ opacity: 1, scale: 1 }}
             transition={{ type: "spring", stiffness: 150, damping: 15 }}
-            className="flex flex-col items-center justify-center flex-1 px-8 py-12 gap-6"
+            className="flex flex-col items-center justify-center flex-1 px-6 sm:px-8 py-12 gap-5 sm:gap-6"
           >
             {/* Titre */}
-            <motion.p
+            <motion.div
               initial={{ y: -30, opacity: 0 }}
               animate={{ y: 0, opacity: 1 }}
               transition={{ delay: 0.3 }}
-              className="text-white/70 text-2xl font-semibold uppercase tracking-widest text-center"
+              className="flex items-center gap-3 text-white/70 text-xl sm:text-2xl font-semibold uppercase tracking-widest text-center"
             >
-              🏆 Et le gagnant est…
-            </motion.p>
+              <Trophy size={28} className="text-yellow-300" />
+              Et le gagnant est…
+            </motion.div>
 
             {/* Numéro */}
             <motion.div
               initial={{ scale: 0 }}
               animate={{ scale: 1 }}
               transition={{ type: "spring", stiffness: 200, damping: 12, delay: 0.5 }}
-              className="rounded-[2rem] py-8 px-16 text-center"
+              className="rounded-[2rem] py-6 sm:py-8 px-10 sm:px-16 text-center"
               style={{
                 background:
                   displayedWinner.gender === "Fille"
@@ -323,12 +373,12 @@ export default function EcranPage() {
                 boxShadow: "0 20px 80px rgba(0,0,0,0.3)",
               }}
             >
-              <p className="text-white/80 text-lg uppercase tracking-widest font-semibold mb-2">
+              <p className="text-white/80 text-sm sm:text-lg uppercase tracking-widest font-semibold mb-2">
                 Numéro gagnant
               </p>
               <p
                 className="text-white font-black"
-                style={{ fontSize: "clamp(6rem, 20vw, 16rem)", lineHeight: 1 }}
+                style={{ fontSize: "clamp(5rem, 20vw, 16rem)", lineHeight: 1 }}
               >
                 {displayedWinner.number}
               </p>
@@ -341,28 +391,36 @@ export default function EcranPage() {
               transition={{ delay: 0.8 }}
               className="text-center"
             >
-              <p className="text-white font-black text-5xl sm:text-7xl">
+              <p
+                className="text-white font-black"
+                style={{ fontSize: "clamp(2rem, 7vw, 5rem)" }}
+              >
                 {displayedWinner.firstName}
               </p>
-              <p className="text-white font-black text-5xl sm:text-7xl">
+              <p
+                className="text-white font-black"
+                style={{ fontSize: "clamp(2rem, 7vw, 5rem)" }}
+              >
                 {displayedWinner.lastName}
               </p>
               {displayedWinner.filiere && (
-                <p className="text-white/60 text-2xl mt-2">
+                <p className="text-white/60 text-lg sm:text-2xl mt-2">
                   {displayedWinner.filiere}
                 </p>
               )}
             </motion.div>
 
             {/* Félicitations */}
-            <motion.p
+            <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ delay: 1.2 }}
-              className="text-white/80 text-2xl font-bold text-center"
+              className="flex items-center gap-3 text-white/80 text-xl sm:text-2xl font-bold text-center"
             >
-              🎉 Félicitations ! 🎉
-            </motion.p>
+              <Star size={24} className="text-yellow-300" />
+              Félicitations !
+              <Star size={24} className="text-yellow-300" />
+            </motion.div>
 
             {/* Bouton retour */}
             <motion.button
@@ -374,9 +432,10 @@ export default function EcranPage() {
                 setDisplayedWinner(null);
                 setShowConfetti(false);
               }}
-              className="text-white/40 hover:text-white/70 text-sm border border-white/20 px-4 py-2 rounded-full transition-colors"
+              className="text-white/40 hover:text-white/70 text-sm border border-white/20 px-4 py-2 rounded-full transition-colors flex items-center gap-2"
             >
-              Retour à l'écran principal
+              <Minimize2 size={14} />
+              Retour à l&apos;écran principal
             </motion.button>
           </motion.div>
         )}

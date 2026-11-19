@@ -1,12 +1,9 @@
 /**
  * app/admin/page.tsx
- * Tableau de bord administrateur
- * - Stats générales
- * - Liste des participants avec recherche/tri/export
- * - Paramètres
- * - Équipes
- * - Réinitialisation
- * - Lancer le tirage gagnant
+ * Tableau de bord administrateur — refactorisé
+ * - Icônes Lucide remplacent les emojis
+ * - Cohérence des actions (toggle direct + paramètres séparés)
+ * - Responsivité améliorée
  */
 "use client";
 
@@ -28,6 +25,12 @@ import {
   AlertCircle,
   Check,
   Shuffle,
+  Ribbon,
+  Star,
+  Clock,
+  CheckCircle2,
+  XCircle,
+  RotateCcw,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import SpinningWheel from "@/components/SpinningWheel";
@@ -130,11 +133,8 @@ export default function AdminPage() {
         let errMessage = "Erreur de connexion à la base de données";
         try {
           const errData = await statsRes.json();
-          if (errData?.details) {
-            errMessage = `${errData.error} : ${errData.details}`;
-          } else if (errData?.error) {
-            errMessage = errData.error;
-          }
+          if (errData?.details) errMessage = `${errData.error} : ${errData.details}`;
+          else if (errData?.error) errMessage = errData.error;
         } catch {}
         setDbError(errMessage);
         return;
@@ -143,9 +143,7 @@ export default function AdminPage() {
       const statsData = await statsRes.json();
       let winnerData = { winner: null };
       if (winnerRes.ok) {
-        try {
-          winnerData = await winnerRes.json();
-        } catch {}
+        try { winnerData = await winnerRes.json(); } catch {}
       }
 
       setStats(statsData);
@@ -166,9 +164,7 @@ export default function AdminPage() {
     }
   }, [search, sortBy, sortDir, router]);
 
-  useEffect(() => {
-    loadData();
-  }, [loadData]);
+  useEffect(() => { loadData(); }, [loadData]);
 
   // ── Déconnexion ──
   const handleLogout = async () => {
@@ -178,25 +174,22 @@ export default function AdminPage() {
 
   // ── Tri des colonnes ──
   const handleSort = (column: string) => {
-    if (sortBy === column) {
-      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
-    } else {
-      setSortBy(column);
-      setSortDir("asc");
-    }
+    if (sortBy === column) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    else { setSortBy(column); setSortDir("asc"); }
   };
 
   // ── Ouvrir/Fermer le tirage directement en un clic ──
+  // Cette action sauvegarde immédiatement en base (cohérence garantie)
   const toggleDraw = async (openState: boolean) => {
     try {
-      const updated = { ...settingsForm, drawOpen: openState };
-      setSettingsForm(updated);
+      const payload = { ...settingsForm, drawOpen: openState };
       const res = await fetch("/api/admin/settings", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(updated),
+        body: JSON.stringify(payload),
       });
       if (res.ok) {
+        setSettingsForm((f) => ({ ...f, drawOpen: openState }));
         await loadData();
       }
     } catch (err) {
@@ -255,12 +248,9 @@ export default function AdminPage() {
   const launchWinnerDraw = async (relaunch = false) => {
     setWinnerError("");
     setWinnerRelaunchConfirm(false);
-
-    // Animation de la roue pendant 4.5s
     setWinnerRotation(3 * 360 + Math.random() * 360);
     setWinnerSpinning(true);
 
-    // On lance le tirage en parallèle
     try {
       const res = await fetch("/api/admin/winner", {
         method: "POST",
@@ -274,8 +264,6 @@ export default function AdminPage() {
         setWinnerSpinning(false);
         return;
       }
-
-      // Stocke temporairement le gagnant, affiché après l'animation
       setPendingWinner(data.winner);
     } catch {
       setWinnerError("Impossible de contacter le serveur");
@@ -294,9 +282,7 @@ export default function AdminPage() {
   };
 
   // ── Export CSV ──
-  const exportCSV = () => {
-    window.open("/api/admin/export", "_blank");
-  };
+  const exportCSV = () => { window.open("/api/admin/export", "_blank"); };
 
   // ─── Rendu ───────────────────────────────────────────
   return (
@@ -306,32 +292,34 @@ export default function AdminPage() {
       {/* ── En-tête admin ── */}
       <header className="relative bg-white shadow-sm">
         <div className="ribbon" />
-        <div className="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between mt-1">
-          <div>
-            <h1 className="text-xl font-black gradient-title">HESTGame Admin</h1>
-            <p className="text-xs text-gray-400">Octobre Rose & Novembre Bleu</p>
+        <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between mt-1 gap-3">
+          <div className="min-w-0">
+            <h1 className="text-lg sm:text-xl font-black gradient-title truncate">HESTGame Admin</h1>
+            <p className="text-xs text-gray-400 hidden sm:block">Octobre Rose & Novembre Bleu</p>
           </div>
-          <div className="flex items-center gap-3">
+
+          <div className="flex items-center gap-2 flex-shrink-0">
+            {/* Toggle rapide open/close */}
             {stats && (
               <button
                 type="button"
                 onClick={() => toggleDraw(!stats.drawOpen)}
-                className={`text-xs font-bold px-3 py-1.5 rounded-xl border flex items-center gap-1.5 transition-all shadow-sm ${
+                className={`text-xs font-bold px-2.5 sm:px-3 py-1.5 rounded-xl border flex items-center gap-1.5 transition-all shadow-sm ${
                   stats.drawOpen
                     ? "bg-red-50 text-red-600 border-red-200 hover:bg-red-100"
                     : "bg-emerald-500 text-white border-emerald-600 hover:bg-emerald-600"
                 }`}
-                title={stats.drawOpen ? "Cliquer pour fermer le tirage" : "Cliquer pour ouvrir le tirage"}
+                title={stats.drawOpen ? "Fermer le tirage" : "Ouvrir le tirage"}
               >
                 {stats.drawOpen ? (
                   <>
                     <PowerOff size={13} />
-                    <span>Fermer le tirage</span>
+                    <span className="hidden sm:inline">Fermer</span>
                   </>
                 ) : (
                   <>
                     <Power size={13} />
-                    <span>Ouvrir le tirage</span>
+                    <span className="hidden sm:inline">Ouvrir</span>
                   </>
                 )}
               </button>
@@ -346,8 +334,8 @@ export default function AdminPage() {
           </div>
         </div>
 
-        {/* Navigation par onglets */}
-        <nav className="max-w-6xl mx-auto px-4 flex gap-1 overflow-x-auto pb-px">
+        {/* Navigation onglets scrollable */}
+        <nav className="max-w-6xl mx-auto px-4 flex gap-0.5 overflow-x-auto pb-px scrollbar-none">
           {(
             [
               { id: "dashboard", label: "Tableau de bord", icon: Users },
@@ -359,26 +347,27 @@ export default function AdminPage() {
             <button
               key={id}
               onClick={() => setTab(id)}
-              className={`flex items-center gap-1.5 px-4 py-2.5 text-sm font-semibold whitespace-nowrap border-b-2 transition-colors ${
+              className={`flex items-center gap-1.5 px-3 sm:px-4 py-2.5 text-xs sm:text-sm font-semibold whitespace-nowrap border-b-2 transition-colors ${
                 tab === id
                   ? "border-[#D81B7A] text-[#D81B7A]"
                   : "border-transparent text-gray-500 hover:text-gray-700"
               }`}
             >
-              <Icon size={15} />
-              {label}
+              <Icon size={14} />
+              <span className="hidden xs:inline sm:inline">{label}</span>
             </button>
           ))}
         </nav>
       </header>
 
-      <main className="max-w-6xl mx-auto px-4 py-6">
+      <main className="max-w-6xl mx-auto px-4 py-5 sm:py-6">
+        {/* Bannière d'erreur BDD */}
         {dbError && (
-          <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-2xl flex items-start gap-3">
+          <div className="mb-5 p-4 bg-red-50 border border-red-200 rounded-2xl flex items-start gap-3">
             <AlertCircle className="text-red-500 mt-0.5 flex-shrink-0" size={20} />
-            <div className="flex-1">
-              <p className="font-bold text-red-800">Problème de connexion BDD</p>
-              <p className="text-sm text-red-600">{dbError}</p>
+            <div className="flex-1 min-w-0">
+              <p className="font-bold text-red-800 text-sm">Problème de connexion BDD</p>
+              <p className="text-sm text-red-600 break-words">{dbError}</p>
               <button
                 onClick={loadData}
                 className="mt-2 text-xs font-semibold px-3 py-1.5 bg-red-100 text-red-700 hover:bg-red-200 rounded-lg transition-colors"
@@ -395,6 +384,7 @@ export default function AdminPage() {
           </div>
         ) : (
           <AnimatePresence mode="wait">
+
             {/* ══ ONGLET TABLEAU DE BORD ══ */}
             {tab === "dashboard" && stats && (
               <motion.div
@@ -402,121 +392,104 @@ export default function AdminPage() {
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0 }}
-                className="flex flex-col gap-6"
+                className="flex flex-col gap-5"
               >
-                {/* ── BANDEAU DE CONTRÔLE ABSOLU DU TIRAGE ── */}
-                <div className="card-hest p-5 border-2 border-indigo-100 bg-gradient-to-r from-pink-50/50 via-white to-blue-50/50">
-                  <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+                {/* ── CONTRÔLE DU TIRAGE ── */}
+                <div className="card-hest p-4 sm:p-5 border-2 border-indigo-100">
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                     <div className="flex items-center gap-3">
                       <div
-                        className={`w-12 h-12 rounded-2xl flex items-center justify-center text-white ${
+                        className={`w-10 h-10 sm:w-12 sm:h-12 rounded-2xl flex items-center justify-center text-white flex-shrink-0 ${
                           stats.drawOpen
                             ? "bg-emerald-500 shadow-lg shadow-emerald-500/20"
                             : "bg-red-500 shadow-lg shadow-red-500/20"
                         }`}
                       >
-                        {stats.drawOpen ? <Power size={24} /> : <PowerOff size={24} />}
+                        {stats.drawOpen ? <Power size={22} /> : <PowerOff size={22} />}
                       </div>
                       <div>
-                        <div className="flex items-center gap-2">
-                          <h2 className="font-bold text-gray-900 text-lg">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <h2 className="font-bold text-gray-900 text-base sm:text-lg">
                             Contrôle du Tirage
                           </h2>
                           <span
-                            className={`text-xs font-black uppercase px-2.5 py-0.5 rounded-full ${
+                            className={`text-xs font-black uppercase px-2 py-0.5 rounded-full ${
                               stats.drawOpen
                                 ? "bg-emerald-100 text-emerald-800"
                                 : "bg-red-100 text-red-800"
                             }`}
                           >
-                            {stats.drawOpen ? "Ouvert aux inscriptions" : "Fermé"}
+                            {stats.drawOpen ? "Ouvert" : "Fermé"}
                           </span>
                         </div>
                         <p className="text-xs text-gray-500 mt-0.5">
-                          Heure prévue : <strong className="text-gray-700">{stats.openTime || "13:30"}</strong>
-                          {stats.autoOpen && <span className="text-emerald-600 ml-1 font-semibold">(Ouverture auto active)</span>}
+                          Heure prévue :{" "}
+                          <strong className="text-gray-700">{stats.openTime || "13:30"}</strong>
+                          {stats.autoOpen && (
+                            <span className="text-emerald-600 ml-1 font-semibold">(Auto)</span>
+                          )}
                         </p>
                       </div>
                     </div>
 
-                    <div className="flex flex-wrap items-center gap-2.5 w-full md:w-auto">
+                    <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
                       <button
                         type="button"
                         onClick={() => toggleDraw(!stats.drawOpen)}
-                        className={`flex-1 md:flex-none px-5 py-3 rounded-xl font-bold text-sm shadow-md transition-all flex items-center justify-center gap-2 ${
+                        className={`flex-1 sm:flex-none px-4 sm:px-5 py-2.5 sm:py-3 rounded-xl font-bold text-sm shadow-md transition-all flex items-center justify-center gap-2 ${
                           stats.drawOpen
                             ? "bg-red-600 hover:bg-red-700 text-white shadow-red-600/20"
                             : "bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-600/20"
                         }`}
                       >
                         {stats.drawOpen ? (
-                          <>
-                            <PowerOff size={16} />
-                            Fermer le tirage
-                          </>
+                          <><PowerOff size={15} /> Fermer le tirage</>
                         ) : (
-                          <>
-                            <Power size={16} />
-                            Ouvrir le tirage maintenant
-                          </>
+                          <><Power size={15} /> Ouvrir maintenant</>
                         )}
                       </button>
 
                       <button
                         type="button"
                         onClick={() => setTab("settings")}
-                        className="px-3.5 py-3 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 text-gray-700 font-semibold text-xs transition-colors flex items-center gap-1.5"
+                        className="px-3 py-2.5 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 text-gray-700 font-semibold text-xs transition-colors flex items-center gap-1.5"
                       >
-                        <Settings size={14} />
-                        Modifier l'heure
+                        <Clock size={13} />
+                        Modifier l&apos;heure
                       </button>
 
                       <button
                         type="button"
                         onClick={() => setTab("winner")}
-                        className="px-3.5 py-3 rounded-xl bg-[#1A3FA8] hover:bg-[#152f8a] text-white font-semibold text-xs transition-colors flex items-center gap-1.5 shadow-sm"
+                        className="px-3 py-2.5 rounded-xl bg-[#1A3FA8] hover:bg-[#152f8a] text-white font-semibold text-xs transition-colors flex items-center gap-1.5 shadow-sm"
                       >
-                        <Trophy size={14} />
-                        Roue du gagnant (après 14h)
+                        <Trophy size={13} />
+                        <span className="hidden sm:inline">Roue du gagnant</span>
+                        <span className="sm:hidden">Gagnant</span>
                       </button>
                     </div>
                   </div>
                 </div>
 
-                {/* Cartes de statistiques */}
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                {/* ── STATS ── */}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
                   {[
+                    { label: "Total", value: stats.total, icon: Users, color: "#1A3FA8" },
+                    { label: "Filles", value: stats.filles, icon: Ribbon, color: "#D81B7A" },
+                    { label: "Garçons", value: stats.garcons, icon: Ribbon, color: "#1A3FA8" },
                     {
-                      label: "Total participants",
-                      value: stats.total,
-                      icon: "👥",
-                      color: "#1A3FA8",
-                    },
-                    {
-                      label: "Filles",
-                      value: stats.filles,
-                      icon: "🎀",
-                      color: "#D81B7A",
-                    },
-                    {
-                      label: "Garçons",
-                      value: stats.garcons,
-                      icon: "🎗️",
-                      color: "#1A3FA8",
-                    },
-                    {
-                      label: "Numéros restants",
+                      label: "Restants",
                       value: stats.remaining,
-                      icon: "🎟️",
+                      icon: Star,
                       color: stats.remaining === 0 ? "#ef4444" : "#059669",
                     },
                   ].map((s) => (
-                    <div key={s.label} className="card-hest p-4">
+                    <div key={s.label} className="card-hest p-3 sm:p-4">
                       <p className="text-xs text-gray-400 font-medium mb-1">{s.label}</p>
                       <div className="flex items-center gap-2">
-                        <span className="text-2xl">{s.icon}</span>
+                        <s.icon size={18} style={{ color: s.color }} />
                         <span
-                          className="text-3xl font-black"
+                          className="text-2xl sm:text-3xl font-black"
                           style={{ color: s.color }}
                         >
                           {s.value}
@@ -526,12 +499,10 @@ export default function AdminPage() {
                   ))}
                 </div>
 
-                {/* Barre de progression */}
-                <div className="card-hest p-5">
+                {/* ── Barre de progression ── */}
+                <div className="card-hest p-4 sm:p-5">
                   <div className="flex justify-between items-center mb-2">
-                    <span className="text-sm font-semibold text-gray-700">
-                      Remplissage
-                    </span>
+                    <span className="text-sm font-semibold text-gray-700">Remplissage</span>
                     <span className="text-sm text-gray-500">
                       {stats.total} / {stats.maxNumber}
                     </span>
@@ -539,54 +510,41 @@ export default function AdminPage() {
                   <div className="w-full bg-gray-100 rounded-full h-3 overflow-hidden">
                     <motion.div
                       initial={{ width: 0 }}
-                      animate={{
-                        width: `${Math.min(
-                          100,
-                          (stats.total / stats.maxNumber) * 100
-                        )}%`,
-                      }}
+                      animate={{ width: `${Math.min(100, (stats.total / stats.maxNumber) * 100)}%` }}
                       transition={{ duration: 0.8, ease: "easeOut" }}
                       className="h-full rounded-full"
-                      style={{
-                        background: "linear-gradient(90deg, #D81B7A, #1A3FA8)",
-                      }}
+                      style={{ background: "linear-gradient(90deg, #D81B7A, #1A3FA8)" }}
                     />
                   </div>
                 </div>
 
-                {/* Tableau des participants */}
+                {/* ── Tableau des participants ── */}
                 <div className="card-hest overflow-hidden">
-                  <div className="p-4 border-b border-gray-100 flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between">
-                    <h2 className="font-bold text-gray-800 flex items-center gap-2">
+                  <div className="p-3 sm:p-4 border-b border-gray-100 flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between">
+                    <h2 className="font-bold text-gray-800 flex items-center gap-2 text-sm sm:text-base">
                       <Users size={16} className="text-[#D81B7A]" />
                       Participants
                     </h2>
                     <div className="flex gap-2 w-full sm:w-auto">
-                      {/* Recherche */}
                       <div className="relative flex-1 sm:flex-none">
-                        <Search
-                          size={15}
-                          className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
-                        />
+                        <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
                         <input
                           type="text"
                           value={search}
                           onChange={(e) => setSearch(e.target.value)}
                           placeholder="Rechercher…"
-                          className="pl-9 pr-3 py-2 rounded-xl border border-gray-200 text-sm outline-none
-                            focus:border-[#D81B7A] focus:ring-2 focus:ring-[#D81B7A]/20 w-full sm:w-48"
+                          className="pl-8 pr-3 py-2 rounded-xl border border-gray-200 text-sm outline-none
+                            focus:border-[#D81B7A] focus:ring-2 focus:ring-[#D81B7A]/20 w-full sm:w-44"
                         />
                       </div>
-                      {/* Export CSV */}
                       <button
                         onClick={exportCSV}
                         className="btn-hest-blue px-3 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5"
                         title="Exporter en CSV"
                       >
                         <Download size={14} />
-                        CSV
+                        <span className="hidden sm:inline">CSV</span>
                       </button>
-                      {/* Rafraîchir */}
                       <button
                         onClick={loadData}
                         className="p-2 rounded-xl border border-gray-200 text-gray-500 hover:bg-gray-50"
@@ -597,8 +555,9 @@ export default function AdminPage() {
                     </div>
                   </div>
 
+                  {/* Table scrollable sur mobile */}
                   <div className="overflow-x-auto">
-                    <table className="w-full text-sm">
+                    <table className="w-full text-sm min-w-[480px]">
                       <thead className="bg-gray-50 border-b border-gray-100">
                         <tr>
                           {[
@@ -613,16 +572,12 @@ export default function AdminPage() {
                             <th
                               key={key}
                               onClick={() => handleSort(key)}
-                              className="px-4 py-3 text-left text-xs font-semibold text-gray-500 cursor-pointer hover:text-gray-700 select-none"
+                              className="px-3 sm:px-4 py-3 text-left text-xs font-semibold text-gray-500 cursor-pointer hover:text-gray-700 select-none"
                             >
                               <div className="flex items-center gap-1">
                                 {label}
                                 {sortBy === key ? (
-                                  sortDir === "asc" ? (
-                                    <ChevronUp size={12} />
-                                  ) : (
-                                    <ChevronDown size={12} />
-                                  )
+                                  sortDir === "asc" ? <ChevronUp size={12} /> : <ChevronDown size={12} />
                                 ) : null}
                               </div>
                             </th>
@@ -632,58 +587,42 @@ export default function AdminPage() {
                       <tbody className="divide-y divide-gray-50">
                         {stats.participants.length === 0 ? (
                           <tr>
-                            <td
-                              colSpan={7}
-                              className="px-4 py-8 text-center text-gray-400 text-sm"
-                            >
-                              {search
-                                ? "Aucun résultat"
-                                : "Aucun participant pour l'instant"}
+                            <td colSpan={7} className="px-4 py-8 text-center text-gray-400 text-sm">
+                              {search ? "Aucun résultat" : "Aucun participant pour l'instant"}
                             </td>
                           </tr>
                         ) : (
                           stats.participants.map((p) => (
-                            <tr
-                              key={p.id}
-                              className="hover:bg-gray-50 transition-colors"
-                            >
-                              <td className="px-4 py-3">
+                            <tr key={p.id} className="hover:bg-gray-50 transition-colors">
+                              <td className="px-3 sm:px-4 py-3">
                                 <span
                                   className="font-black text-lg"
-                                  style={{
-                                    color:
-                                      p.gender === "Fille" ? "#D81B7A" : "#1A3FA8",
-                                  }}
+                                  style={{ color: p.gender === "Fille" ? "#D81B7A" : "#1A3FA8" }}
                                 >
                                   {p.number}
                                 </span>
                               </td>
-                              <td className="px-4 py-3 font-medium text-gray-800">
-                                {p.firstName}
-                              </td>
-                              <td className="px-4 py-3 text-gray-700">
-                                {p.lastName}
-                              </td>
-                              <td className="px-4 py-3">
+                              <td className="px-3 sm:px-4 py-3 font-medium text-gray-800">{p.firstName}</td>
+                              <td className="px-3 sm:px-4 py-3 text-gray-700">{p.lastName}</td>
+                              <td className="px-3 sm:px-4 py-3">
                                 <span
-                                  className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
+                                  className={`text-xs font-semibold px-2 py-0.5 rounded-full inline-flex items-center gap-1 ${
                                     p.gender === "Fille"
                                       ? "bg-pink-100 text-pink-700"
                                       : "bg-blue-100 text-blue-700"
                                   }`}
                                 >
-                                  {p.gender === "Fille" ? "🎀" : "🎗️"} {p.gender}
+                                  <Ribbon size={10} strokeWidth={2} />
+                                  {p.gender}
                                 </span>
                               </td>
-                              <td className="px-4 py-3 text-gray-500 text-xs">
-                                {p.filiere || "—"}
-                              </td>
-                              <td className="px-4 py-3">
+                              <td className="px-3 sm:px-4 py-3 text-gray-500 text-xs">{p.filiere || "—"}</td>
+                              <td className="px-3 sm:px-4 py-3">
                                 <span className="text-xs font-semibold text-gray-600">
                                   {TEAM_NAMES[p.team - 1] || `Équipe ${p.team}`}
                                 </span>
                               </td>
-                              <td className="px-4 py-3 text-gray-400 text-xs whitespace-nowrap">
+                              <td className="px-3 sm:px-4 py-3 text-gray-400 text-xs whitespace-nowrap">
                                 {new Date(p.createdAt).toLocaleString("fr-FR", {
                                   timeZone: "Africa/Lome",
                                   hour: "2-digit",
@@ -698,9 +637,9 @@ export default function AdminPage() {
                   </div>
                 </div>
 
-                {/* Zone de réinitialisation */}
-                <div className="card-hest p-5 border-2 border-red-100">
-                  <h3 className="font-bold text-red-600 mb-2 flex items-center gap-2">
+                {/* ── Zone dangereuse ── */}
+                <div className="card-hest p-4 sm:p-5 border-2 border-red-100">
+                  <h3 className="font-bold text-red-600 mb-2 flex items-center gap-2 text-sm sm:text-base">
                     <AlertCircle size={16} />
                     Zone dangereuse — Réinitialiser
                   </h3>
@@ -709,14 +648,18 @@ export default function AdminPage() {
                   </p>
 
                   {resetMsg && (
-                    <p className="mb-3 text-sm text-green-600 font-medium">{resetMsg}</p>
+                    <p className="mb-3 text-sm text-green-600 font-medium flex items-center gap-1">
+                      <CheckCircle2 size={14} />
+                      {resetMsg}
+                    </p>
                   )}
 
                   {resetStep === "idle" && (
                     <button
                       onClick={() => setResetStep("confirm1")}
-                      className="px-4 py-2 bg-red-50 text-red-600 border border-red-200 rounded-xl text-sm font-semibold hover:bg-red-100 transition-colors"
+                      className="px-4 py-2 bg-red-50 text-red-600 border border-red-200 rounded-xl text-sm font-semibold hover:bg-red-100 transition-colors flex items-center gap-2"
                     >
+                      <RotateCcw size={14} />
                       Réinitialiser les données
                     </button>
                   )}
@@ -725,14 +668,16 @@ export default function AdminPage() {
                     <div className="flex gap-2">
                       <button
                         onClick={() => setResetStep("confirm2")}
-                        className="px-4 py-2 bg-red-500 text-white rounded-xl text-sm font-semibold hover:bg-red-600"
+                        className="px-4 py-2 bg-red-500 text-white rounded-xl text-sm font-semibold hover:bg-red-600 flex items-center gap-1.5"
                       >
+                        <AlertCircle size={13} />
                         Oui, confirmer
                       </button>
                       <button
                         onClick={() => setResetStep("idle")}
-                        className="px-4 py-2 bg-gray-100 text-gray-600 rounded-xl text-sm font-semibold"
+                        className="px-4 py-2 bg-gray-100 text-gray-600 rounded-xl text-sm font-semibold flex items-center gap-1.5"
                       >
+                        <XCircle size={13} />
                         Annuler
                       </button>
                     </div>
@@ -743,29 +688,24 @@ export default function AdminPage() {
                       <p className="text-sm text-red-600 font-semibold">
                         Tapez <code className="bg-red-100 px-1 rounded">RESET</code> pour confirmer :
                       </p>
-                      <div className="flex gap-2">
+                      <div className="flex gap-2 flex-wrap">
                         <input
                           type="text"
                           value={resetInput}
                           onChange={(e) => setResetInput(e.target.value)}
                           placeholder="RESET"
-                          className="px-3 py-2 rounded-xl border border-red-300 text-sm outline-none focus:border-red-500 w-32"
+                          className="px-3 py-2 rounded-xl border border-red-300 text-sm outline-none focus:border-red-500 w-28"
                         />
                         <button
                           onClick={handleReset}
                           disabled={resetInput !== "RESET" || resetLoading}
                           className="px-4 py-2 bg-red-500 text-white rounded-xl text-sm font-semibold disabled:opacity-50 flex items-center gap-1.5"
                         >
-                          {resetLoading ? (
-                            <Loader2 size={14} className="animate-spin" />
-                          ) : null}
+                          {resetLoading ? <Loader2 size={14} className="animate-spin" /> : <RotateCcw size={14} />}
                           Réinitialiser
                         </button>
                         <button
-                          onClick={() => {
-                            setResetStep("idle");
-                            setResetInput("");
-                          }}
+                          onClick={() => { setResetStep("idle"); setResetInput(""); }}
                           className="px-4 py-2 bg-gray-100 text-gray-600 rounded-xl text-sm font-semibold"
                         >
                           Annuler
@@ -784,24 +724,24 @@ export default function AdminPage() {
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0 }}
-                className="card-hest p-6 max-w-md"
+                className="card-hest p-5 sm:p-6 max-w-md"
               >
                 <div className="ribbon" />
-                <h2 className="font-bold text-gray-800 text-lg mb-6 mt-2 flex items-center gap-2">
+                <h2 className="font-bold text-gray-800 text-lg mb-5 mt-2 flex items-center gap-2">
                   <Settings size={18} className="text-[#D81B7A]" />
-                  Paramètres de l'événement
+                  Paramètres de l&apos;événement
                 </h2>
 
                 <div className="flex flex-col gap-5">
-                  {/* Heure d'ouverture du tirage (choisie par l'admin) */}
+                  {/* Heure d'ouverture */}
                   <div className="bg-pink-50/60 border border-pink-100 rounded-2xl p-4">
                     <label className="block text-sm font-bold text-gray-800 mb-1">
-                      Heure d'ouverture du tirage
+                      Heure d&apos;ouverture du tirage
                     </label>
                     <p className="text-xs text-gray-500 mb-3">
-                      L'heure officielle communiquée aux participants sur leur téléphone.
+                      L&apos;heure officielle communiquée aux participants. Le compte à rebours s&apos;y base.
                     </p>
-                    <div className="flex items-center gap-2 mb-2">
+                    <div className="flex flex-wrap items-center gap-2 mb-2">
                       <input
                         type="time"
                         value={settingsForm.openTime || "13:30"}
@@ -835,16 +775,16 @@ export default function AdminPage() {
                         onChange={(e) =>
                           setSettingsForm((f) => ({ ...f, autoOpen: e.target.checked }))
                         }
-                        className="rounded text-[#D81B7A] focus:ring-[#D81B7A] w-4 h-4"
+                        className="rounded w-4 h-4"
                       />
-                      <span>Ouvrir automatiquement le tirage dès que l'heure arrive</span>
+                      <span>Ouvrir automatiquement le tirage dès que l&apos;heure arrive</span>
                     </label>
                   </div>
 
-                  {/* Message personnalisé quand le tirage est fermé */}
+                  {/* Message d'attente */}
                   <div>
                     <label className="block text-sm font-semibold text-gray-700 mb-1.5">
-                      Message d'attente (quand le tirage est fermé)
+                      Message d&apos;attente (quand le tirage est fermé)
                     </label>
                     <textarea
                       rows={2}
@@ -868,10 +808,7 @@ export default function AdminPage() {
                       max={10000}
                       value={settingsForm.maxNumber}
                       onChange={(e) =>
-                        setSettingsForm((f) => ({
-                          ...f,
-                          maxNumber: parseInt(e.target.value) || 200,
-                        }))
+                        setSettingsForm((f) => ({ ...f, maxNumber: parseInt(e.target.value) || 200 }))
                       }
                       className="w-full px-4 py-3 rounded-xl border border-gray-200 text-base outline-none focus:border-[#D81B7A] focus:ring-2 focus:ring-[#D81B7A]/20"
                     />
@@ -880,7 +817,7 @@ export default function AdminPage() {
                   {/* Nombre d'équipes */}
                   <div>
                     <label className="block text-sm font-semibold text-gray-700 mb-1.5">
-                      Nombre d'équipes (Génies en herbe)
+                      Nombre d&apos;équipes (Génies en herbe)
                     </label>
                     <input
                       type="number"
@@ -888,32 +825,20 @@ export default function AdminPage() {
                       max={20}
                       value={settingsForm.teamCount}
                       onChange={(e) =>
-                        setSettingsForm((f) => ({
-                          ...f,
-                          teamCount: parseInt(e.target.value) || 4,
-                        }))
+                        setSettingsForm((f) => ({ ...f, teamCount: parseInt(e.target.value) || 4 }))
                       }
                       className="w-full px-4 py-3 rounded-xl border border-gray-200 text-base outline-none focus:border-[#D81B7A] focus:ring-2 focus:ring-[#D81B7A]/20"
                     />
                   </div>
 
-                  {/* Ouvrir/fermer le tirage */}
+                  {/* Toggle tirage dans les paramètres */}
                   <div className="flex items-center justify-between p-4 bg-gray-50 rounded-xl">
                     <div>
-                      <p className="font-semibold text-gray-700 text-sm">
-                        Tirage ouvert
-                      </p>
-                      <p className="text-xs text-gray-400">
-                        Autorise les participants à s'inscrire
-                      </p>
+                      <p className="font-semibold text-gray-700 text-sm">Tirage ouvert</p>
+                      <p className="text-xs text-gray-400">Autorise les participants à s&apos;inscrire</p>
                     </div>
                     <button
-                      onClick={() =>
-                        setSettingsForm((f) => ({
-                          ...f,
-                          drawOpen: !f.drawOpen,
-                        }))
-                      }
+                      onClick={() => setSettingsForm((f) => ({ ...f, drawOpen: !f.drawOpen }))}
                       className={`w-14 h-7 rounded-full transition-colors relative ${
                         settingsForm.drawOpen ? "bg-green-500" : "bg-gray-300"
                       }`}
@@ -931,37 +856,32 @@ export default function AdminPage() {
                   {/* Boutons d'action rapide */}
                   <div className="grid grid-cols-2 gap-3">
                     <button
-                      onClick={() => {
-                        setSettingsForm((f) => ({ ...f, drawOpen: true }));
-                        setTimeout(() => saveSettings(), 100);
-                      }}
+                      onClick={() => { setSettingsForm((f) => ({ ...f, drawOpen: true })); setTimeout(() => saveSettings(), 100); }}
                       className="btn-hest-pink py-3 rounded-xl text-sm font-bold flex items-center justify-center gap-2"
                     >
-                      <Power size={16} />
-                      Ouvrir le tirage
+                      <Power size={15} />
+                      Ouvrir
                     </button>
                     <button
-                      onClick={() => {
-                        setSettingsForm((f) => ({ ...f, drawOpen: false }));
-                        setTimeout(() => saveSettings(), 100);
-                      }}
+                      onClick={() => { setSettingsForm((f) => ({ ...f, drawOpen: false })); setTimeout(() => saveSettings(), 100); }}
                       className="btn-hest-blue py-3 rounded-xl text-sm font-bold flex items-center justify-center gap-2"
                     >
-                      <PowerOff size={16} />
-                      Fermer le tirage
+                      <PowerOff size={15} />
+                      Fermer
                     </button>
                   </div>
 
                   {/* Message de feedback */}
                   {settingsMsg && (
                     <p
-                      className={`text-sm font-medium flex items-center gap-1 ${
-                        settingsMsg.includes("✓")
-                          ? "text-green-600"
-                          : "text-red-500"
+                      className={`text-sm font-medium flex items-center gap-1.5 ${
+                        settingsMsg.includes("✓") ? "text-green-600" : "text-red-500"
                       }`}
                     >
-                      <Check size={14} />
+                      {settingsMsg.includes("✓")
+                        ? <CheckCircle2 size={14} />
+                        : <AlertCircle size={14} />
+                      }
                       {settingsMsg}
                     </p>
                   )}
@@ -972,11 +892,7 @@ export default function AdminPage() {
                     disabled={settingsSaving}
                     className="btn-hest-pink py-3.5 rounded-2xl font-bold text-sm flex items-center justify-center gap-2 disabled:opacity-60"
                   >
-                    {settingsSaving ? (
-                      <Loader2 size={16} className="animate-spin" />
-                    ) : (
-                      <Check size={16} />
-                    )}
+                    {settingsSaving ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}
                     Sauvegarder les paramètres
                   </button>
                 </div>
@@ -998,13 +914,8 @@ export default function AdminPage() {
                 </h2>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {Array.from(
-                    { length: stats.teamCount },
-                    (_, i) => i + 1
-                  ).map((teamNum) => {
-                    const members = stats.participants.filter(
-                      (p) => p.team === teamNum
-                    );
+                  {Array.from({ length: stats.teamCount }, (_, i) => i + 1).map((teamNum) => {
+                    const members = stats.participants.filter((p) => p.team === teamNum);
                     return (
                       <div key={teamNum} className="card-hest overflow-hidden">
                         <div
@@ -1016,7 +927,8 @@ export default function AdminPage() {
                                 : "linear-gradient(135deg, #1A3FA8, #3b5fc0)",
                           }}
                         >
-                          <span>
+                          <span className="flex items-center gap-1.5">
+                            <Users size={14} />
                             Équipe {TEAM_NAMES[teamNum - 1] || teamNum}
                           </span>
                           <span className="bg-white/20 px-2 py-0.5 rounded-full text-xs">
@@ -1025,25 +937,25 @@ export default function AdminPage() {
                         </div>
                         <ul className="p-3 max-h-56 overflow-y-auto divide-y divide-gray-50">
                           {members.length === 0 ? (
-                            <li className="py-3 text-center text-xs text-gray-400">
-                              Aucun membre
-                            </li>
+                            <li className="py-3 text-center text-xs text-gray-400">Aucun membre</li>
                           ) : (
                             members.map((p) => (
-                              <li
-                                key={p.id}
-                                className="py-2 flex items-center justify-between gap-2"
-                              >
-                                <span className="font-bold text-sm"
-                                  style={{ color: p.gender === "Fille" ? "#D81B7A" : "#1A3FA8" }}>
+                              <li key={p.id} className="py-2 flex items-center justify-between gap-2">
+                                <span
+                                  className="font-black text-sm"
+                                  style={{ color: p.gender === "Fille" ? "#D81B7A" : "#1A3FA8" }}
+                                >
                                   #{p.number}
                                 </span>
                                 <span className="text-sm text-gray-700 flex-1 truncate">
                                   {p.firstName} {p.lastName}
                                 </span>
-                                <span className="text-xs text-gray-400">
-                                  {p.gender === "Fille" ? "🎀" : "🎗️"}
-                                </span>
+                                <Ribbon
+                                  size={12}
+                                  strokeWidth={2}
+                                  style={{ color: p.gender === "Fille" ? "#D81B7A" : "#1A3FA8" }}
+                                  className="flex-shrink-0"
+                                />
                               </li>
                             ))
                           )}
@@ -1070,7 +982,7 @@ export default function AdminPage() {
                     Tirage du gagnant final
                   </h2>
                   <p className="text-xs text-gray-500 mt-1">
-                    Vous avez le contrôle total : lancez la roue à tout moment (après 14h) pour désigner le grand gagnant parmi tous les numéros attribués.
+                    Lancez la roue pour désigner le grand gagnant parmi tous les numéros attribués.
                   </p>
                 </div>
 
@@ -1081,8 +993,7 @@ export default function AdminPage() {
                   </div>
                 )}
 
-                {/* Roue du gagnant */}
-                <div className="card-hest p-6 w-full flex flex-col items-center gap-4">
+                <div className="card-hest p-5 sm:p-6 w-full flex flex-col items-center gap-4">
                   <div className="ribbon" />
                   <SpinningWheel
                     finalRotation={winnerRotation}
@@ -1108,9 +1019,12 @@ export default function AdminPage() {
                                 : "linear-gradient(135deg, #1A3FA8, #3b5fc0)",
                           }}
                         >
-                          <p className="text-white/80 text-xs uppercase tracking-widest font-semibold mb-1">
-                            🏆 Gagnant(e) du tirage
-                          </p>
+                          <div className="flex items-center justify-center gap-2 mb-1">
+                            <Trophy size={14} className="text-white/80" />
+                            <p className="text-white/80 text-xs uppercase tracking-widest font-semibold">
+                              Gagnant(e) du tirage
+                            </p>
+                          </div>
                           <p
                             className="text-white font-black"
                             style={{ fontSize: "4rem", lineHeight: 1 }}
@@ -1121,9 +1035,7 @@ export default function AdminPage() {
                             {winner.firstName} {winner.lastName}
                           </p>
                           {winner.filiere && (
-                            <p className="text-white/70 text-sm mt-1">
-                              {winner.filiere}
-                            </p>
+                            <p className="text-white/70 text-sm mt-1">{winner.filiere}</p>
                           )}
                           <p className="text-white/70 text-xs mt-2">
                             Tiré le{" "}
@@ -1151,7 +1063,7 @@ export default function AdminPage() {
                     </button>
                   )}
 
-                  {/* Relancer (si gagnant existe) */}
+                  {/* Relancer */}
                   {!winnerSpinning && winner && (
                     <div className="w-full">
                       {!winnerRelaunchConfirm ? (
@@ -1170,14 +1082,16 @@ export default function AdminPage() {
                           <div className="flex gap-2">
                             <button
                               onClick={() => launchWinnerDraw(true)}
-                              className="flex-1 py-2.5 bg-orange-500 text-white rounded-xl text-sm font-bold"
+                              className="flex-1 py-2.5 bg-orange-500 text-white rounded-xl text-sm font-bold flex items-center justify-center gap-1.5"
                             >
+                              <Check size={14} />
                               Oui, relancer
                             </button>
                             <button
                               onClick={() => setWinnerRelaunchConfirm(false)}
-                              className="flex-1 py-2.5 bg-gray-100 text-gray-600 rounded-xl text-sm font-semibold"
+                              className="flex-1 py-2.5 bg-gray-100 text-gray-600 rounded-xl text-sm font-semibold flex items-center justify-center gap-1.5"
                             >
+                              <XCircle size={14} />
                               Annuler
                             </button>
                           </div>
@@ -1187,7 +1101,8 @@ export default function AdminPage() {
                   )}
 
                   {winnerSpinning && (
-                    <p className="text-[#D81B7A] font-bold text-sm animate-pulse">
+                    <p className="text-[#D81B7A] font-bold text-sm animate-pulse flex items-center gap-2">
+                      <Loader2 size={14} className="animate-spin" />
                       Tirage en cours…
                     </p>
                   )}

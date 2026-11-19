@@ -7,7 +7,17 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { User, ChevronRight, AlertCircle, Loader2 } from "lucide-react";
+import {
+  User,
+  ChevronRight,
+  AlertCircle,
+  Loader2,
+  Clock,
+  CheckCircle2,
+  Trophy,
+  Ribbon,
+  GraduationCap,
+} from "lucide-react";
 import HESTHeader from "@/components/HESTHeader";
 import SpinningWheel from "@/components/SpinningWheel";
 import NumberCard from "@/components/NumberCard";
@@ -26,12 +36,33 @@ interface ParticipantData {
 }
 
 type AppState =
-  | "loading"       // Chargement initial
-  | "closed"        // Tirage fermé
-  | "full"          // Tous les numéros attribués
-  | "form"          // Formulaire d'inscription
-  | "spinning"      // Roue en cours
-  | "result";       // Résultat affiché
+  | "loading"    // Chargement initial
+  | "closed"     // Tirage fermé → compte à rebours
+  | "full"       // Tous les numéros attribués
+  | "form"       // Formulaire d'inscription
+  | "spinning"   // Roue en cours
+  | "result";    // Résultat affiché
+
+/** Calcule les secondes restantes avant l'heure d'ouverture (HH:MM Togo UTC+0) */
+function secondsUntilOpen(openTime: string): number {
+  const now = new Date();
+  // Heure actuelle en Togo (UTC+0 = même que UTC)
+  const togoNow = new Date(now.toLocaleString("en-US", { timeZone: "Africa/Lome" }));
+  const [hh, mm] = openTime.split(":").map(Number);
+  const target = new Date(togoNow);
+  target.setHours(hh, mm, 0, 0);
+  const diff = Math.floor((target.getTime() - togoNow.getTime()) / 1000);
+  return diff > 0 ? diff : 0;
+}
+
+/** Formate les secondes en HH:MM:SS */
+function formatCountdown(secs: number): string {
+  const h = Math.floor(secs / 3600);
+  const m = Math.floor((secs % 3600) / 60);
+  const s = secs % 60;
+  if (h > 0) return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+  return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+}
 
 export default function ParticipantPage() {
   const [appState, setAppState] = useState<AppState>("loading");
@@ -51,6 +82,18 @@ export default function ParticipantPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [finalRotation, setFinalRotation] = useState(0);
   const [showConfetti, setShowConfetti] = useState(false);
+
+  // ── Compte à rebours ──
+  const [countdown, setCountdown] = useState(0);
+
+  // Tick du compte à rebours (1s) — simple, pas de dépendance sur openTime
+  useEffect(() => {
+    if (appState !== "closed" || countdown <= 0) return;
+    const timer = setTimeout(() => {
+      setCountdown((prev) => Math.max(0, prev - 1));
+    }, 1000);
+    return () => clearTimeout(timer);
+  }, [appState, countdown]);
 
   /** Vérifie si un résultat est déjà sauvegardé localement */
   const checkLocalStorage = useCallback(() => {
@@ -80,12 +123,15 @@ export default function ParticipantPage() {
       if (!res.ok) return;
       const data = await res.json();
 
+      const ot = data.openTime || "13:30";
       setStatusInfo({
-        openTime: data.openTime || "13:30",
+        openTime: ot,
         closedMessage: data.closedMessage || "Le tirage n'est pas encore ouvert. Veuillez patienter.",
       });
 
       if (!data.drawOpen) {
+        // Calculer le countdown ICI, en même temps qu'on connaît l'heure
+        setCountdown(secondsUntilOpen(ot));
         setAppState("closed");
       } else if (data.full) {
         setAppState("full");
@@ -101,9 +147,11 @@ export default function ParticipantPage() {
     checkStatus();
   }, [checkStatus]);
 
-  // Si fermé, vérification automatique toutes les 4s pour débloquer dès que l'admin ouvre
+  // Polling universel : détecte les changements d'état dans TOUS les états actifs
+  // (closed → s'ouvre, form → se ferme, full → se vide si reset)
   useEffect(() => {
-    if (appState !== "closed") return;
+    // Pas de polling si on a un résultat définitif ou si on est en animation
+    if (appState === "result" || appState === "spinning" || appState === "loading") return;
     const interval = setInterval(() => {
       checkStatus();
     }, 4000);
@@ -149,10 +197,8 @@ export default function ParticipantPage() {
         return;
       }
 
-      // Calcul de la rotation finale (3 tours + position du résultat)
-      // On ne simule rien : le numéro réel est affiché après l'animation
-      const extraTurns = 3 * 360; // 3 tours complets
-      const landingAngle = Math.random() * 360; // Angle visuel aléatoire (décoratif)
+      const extraTurns = 3 * 360;
+      const landingAngle = Math.random() * 360;
       setFinalRotation(extraTurns + landingAngle);
 
       setParticipant(data);
@@ -166,10 +212,7 @@ export default function ParticipantPage() {
   /** Appelé à la fin de l'animation de la roue */
   const handleSpinComplete = () => {
     if (!participant) return;
-
-    // Sauvegarde dans localStorage
     localStorage.setItem(STORAGE_KEY, JSON.stringify(participant));
-
     setShowConfetti(true);
     setAppState("result");
   };
@@ -181,6 +224,7 @@ export default function ParticipantPage() {
 
       <main className="flex-1 flex flex-col items-center justify-center px-4 py-8 gap-6">
         <AnimatePresence mode="wait">
+
           {/* ── CHARGEMENT ── */}
           {appState === "loading" && (
             <motion.div
@@ -195,34 +239,74 @@ export default function ParticipantPage() {
             </motion.div>
           )}
 
-          {/* ── TIRAGE FERMÉ ── */}
+          {/* ── TIRAGE FERMÉ avec compte à rebours ── */}
           {appState === "closed" && (
             <motion.div
               key="closed"
               initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0 }}
-              className="card-hest p-8 max-w-sm w-full text-center"
+              className="card-hest p-6 sm:p-8 max-w-sm w-full text-center"
             >
               <div className="ribbon" />
-              <span className="text-5xl mb-4 block mt-2" aria-hidden="true">⏰</span>
+
+              {/* Icône horloge */}
+              <div className="flex justify-center mt-3 mb-4">
+                <div className="w-16 h-16 rounded-2xl flex items-center justify-center bg-gradient-to-br from-pink-100 to-blue-100">
+                  <Clock size={32} className="text-[#D81B7A]" />
+                </div>
+              </div>
+
               <h2 className="text-xl font-bold text-gray-800 mb-2">
                 Tirage pas encore ouvert
               </h2>
+
+              {/* Heure prévue */}
               <div className="bg-pink-50 border border-pink-100 rounded-xl py-3 px-4 mb-4">
                 <p className="text-xs uppercase tracking-wider font-semibold text-[#D81B7A] mb-1">
                   Heure prévue
                 </p>
-                <p className="text-2xl font-black text-gray-800">
+                <p className="text-3xl font-black text-gray-800">
                   {statusInfo.openTime}
                 </p>
               </div>
+
+              {/* Compte à rebours */}
+              {countdown > 0 && (
+                <div className="mb-4">
+                  <p className="text-xs text-gray-400 uppercase tracking-wider font-semibold mb-1">
+                    Ouverture dans
+                  </p>
+                  <motion.p
+                    key={countdown}
+                    initial={{ scale: 1.15, opacity: 0.7 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    transition={{ duration: 0.3 }}
+                    className="text-4xl font-black tabular-nums"
+                    style={{ color: countdown < 60 ? "#D81B7A" : "#1A3FA8" }}
+                  >
+                    {formatCountdown(countdown)}
+                  </motion.p>
+                </div>
+              )}
+
+              {countdown === 0 && (
+                <div className="mb-4 p-3 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center justify-center gap-2">
+                  <CheckCircle2 size={16} className="text-emerald-600" />
+                  <p className="text-sm font-semibold text-emerald-700">
+                    L&apos;heure est passée — en attente d&apos;ouverture admin
+                  </p>
+                </div>
+              )}
+
               <p className="text-gray-500 text-sm mb-4">
                 {statusInfo.closedMessage}
               </p>
+
+              {/* Indicateur de polling */}
               <div className="flex items-center justify-center gap-2 text-xs text-gray-400">
                 <span className="w-2 h-2 rounded-full bg-orange-400 animate-ping" />
-                <span>En attente de l'administrateur…</span>
+                <span>En attente de l&apos;administrateur…</span>
               </div>
               <button
                 type="button"
@@ -244,7 +328,11 @@ export default function ParticipantPage() {
               className="card-hest p-8 max-w-sm w-full text-center"
             >
               <div className="ribbon" />
-              <span className="text-5xl mb-4 block mt-2" aria-hidden="true">🏆</span>
+              <div className="flex justify-center mt-3 mb-4">
+                <div className="w-16 h-16 rounded-2xl flex items-center justify-center bg-gradient-to-br from-yellow-100 to-orange-100">
+                  <Trophy size={32} className="text-yellow-500" />
+                </div>
+              </div>
               <h2 className="text-xl font-bold text-gray-800 mb-2">
                 Tous les numéros sont attribués
               </h2>
@@ -261,10 +349,10 @@ export default function ParticipantPage() {
               initial={{ opacity: 0, y: 30 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -30 }}
-              className="card-hest p-6 max-w-sm w-full"
+              className="card-hest p-5 sm:p-6 max-w-sm w-full"
             >
               <div className="ribbon" />
-              <div className="mt-2 mb-6 flex items-center gap-2">
+              <div className="mt-3 mb-5 flex items-center gap-2">
                 <User size={20} className="text-[#D81B7A]" />
                 <h2 className="text-lg font-bold text-gray-800">
                   Inscris-toi pour participer
@@ -342,7 +430,7 @@ export default function ParticipantPage() {
                         key={g}
                         type="button"
                         onClick={() => setForm((f) => ({ ...f, gender: g }))}
-                        className={`py-3 rounded-xl font-semibold text-sm transition-all border-2
+                        className={`py-3 rounded-xl font-semibold text-sm transition-all border-2 flex items-center justify-center gap-2
                           ${
                             form.gender === g
                               ? g === "Fille"
@@ -351,7 +439,11 @@ export default function ParticipantPage() {
                               : "bg-white text-gray-600 border-gray-200 hover:border-gray-300"
                           }`}
                       >
-                        {g === "Fille" ? "🎀 Fille" : "🎗️ Garçon"}
+                        <Ribbon
+                          size={16}
+                          className={form.gender === g ? "text-white" : g === "Fille" ? "text-[#D81B7A]" : "text-[#1A3FA8]"}
+                        />
+                        {g}
                       </button>
                     ))}
                   </div>
@@ -369,17 +461,23 @@ export default function ParticipantPage() {
                     Filière / Classe{" "}
                     <span className="text-gray-400 font-normal">(optionnel)</span>
                   </label>
-                  <input
-                    id="filiere"
-                    type="text"
-                    value={form.filiere}
-                    onChange={(e) =>
-                      setForm((f) => ({ ...f, filiere: e.target.value }))
-                    }
-                    placeholder="Ex : Informatique, Licence 2…"
-                    className="w-full px-4 py-3 rounded-xl border border-gray-200 bg-white text-base
-                      transition-colors outline-none focus:border-[#D81B7A] focus:ring-2 focus:ring-[#D81B7A]/20"
-                  />
+                  <div className="relative">
+                    <GraduationCap
+                      size={16}
+                      className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
+                    />
+                    <input
+                      id="filiere"
+                      type="text"
+                      value={form.filiere}
+                      onChange={(e) =>
+                        setForm((f) => ({ ...f, filiere: e.target.value }))
+                      }
+                      placeholder="Ex : Informatique, Licence 2…"
+                      className="w-full pl-10 pr-4 py-3 rounded-xl border border-gray-200 bg-white text-base
+                        transition-colors outline-none focus:border-[#D81B7A] focus:ring-2 focus:ring-[#D81B7A]/20"
+                    />
+                  </div>
                 </div>
 
                 {/* Bouton Tourner */}
@@ -444,7 +542,7 @@ export default function ParticipantPage() {
                 lastName={participant.lastName}
                 gender={participant.gender as "Fille" | "Garçon"}
               />
-              <p className="text-xs text-gray-400 text-center">
+              <p className="text-xs text-gray-400 text-center px-4">
                 Mémorise ton numéro ! Il te sera demandé lors du tirage final à 17h.
               </p>
             </motion.div>
